@@ -1,6 +1,6 @@
 # 3D GLIM - Hướng dẫn cài đặt
 
-Dự án này yêu cầu các công cụ build và thư viện sau để hoạt động:
+Framework 3D Localization and Mapping dựa trên GLIM, đóng gói dưới dạng git submodules trong một workspace ROS 2.
 
 ## Yêu cầu hệ thống
 
@@ -9,126 +9,149 @@ Dự án này yêu cầu các công cụ build và thư viện sau để hoạt 
 - **CMake**: Hệ thống build cross-platform
 - **C++ Compiler**: GCC hoặc Clang (C++14 trở lên)
 
-### Thư viện chính
+### ROS 2
+- ROS 2 Humble hoặc mới hơn
 
-#### 1. GTSAM (Georgia Tech Smoothing and Mapping)
-GTSAM là thư viện C++ cho việc tối ưu hóa và suy luận trong robotics và computer vision.
+---
 
-**Cài đặt GTSAM:**
+## Cài đặt nhanh
+
+Toàn bộ quá trình clone submodule và build được tự động hóa qua script `build.sh`:
 
 ```bash
-# Clone GTSAM repository
-git clone https://github.com/hungvuhust/gtsam.git
-cd gtsam
-git checkout 4.3a0 
+# Clone repo (nếu chưa có)
+git clone <repo-url> ~/glim_3d_ws/src/3d_glim
+cd ~/glim_3d_ws/src/3d_glim
 
-# Về ros2_ws
-cd ~/ros2_ws
-
-# Cấu hình với CMake và build với colcon 
-colcon build --packages-select gtsam \
-      --cmake-args \
-      -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-      -DGTSAM_BUILD_EXAMPLES_ALWAYS=OFF \
-      -DGTSAM_BUILD_TESTS=OFF \
-      -DGTSAM_WITH_TBB=OFF \
-      -DGTSAM_BUILD_WITH_MARCH_NATIVE=OFF
+# Chạy build script
+chmod +x build.sh
+./build.sh
 ```
 
-**Cài đặt thư viện visualization (tùy chọn):**
+Script sẽ tự động:
+1. Detect và source môi trường ROS 2
+2. Clone tất cả submodule cần thiết
+3. Checkout GTSAM đúng phiên bản `4.3a0`
+4. Build tuần tự: `gtsam` → `gtsam_points` → `glim` → `glim_ros`
+
+---
+
+## Cấu trúc dự án
+
+```
+3d_glim/
+├── gtsam/          # Georgia Tech Smoothing and Mapping (tag 4.3a0)
+├── gtsam_points/   # GTSAM extension cho point cloud
+├── glim/           # 3D Localization and Mapping Framework
+├── glim_ros2/      # ROS 2 interface cho GLIM
+├── iridescence/    # Thư viện visualization (tùy chọn)
+├── build.sh        # Script build tự động
+└── README.md
+```
+
+---
+
+## Cài đặt thủ công (từng bước)
+
+### Bước 1 — Clone submodules
+
 ```bash
-# Cài đặt dependencies cho iridescence
+cd ~/glim_3d_ws/src/3d_glim
+
+git submodule update --init gtsam gtsam_points glim_ros2
+git submodule update --init --recursive glim iridescence
+
+# Đảm bảo GTSAM đúng version
+cd gtsam && git checkout 4.3a0 && cd ..
+```
+
+### Bước 2 — Build GTSAM
+
+```bash
+cd ~/glim_3d_ws
+colcon build --packages-select gtsam \
+    --cmake-args \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+    -DGTSAM_BUILD_EXAMPLES_ALWAYS=OFF \
+    -DGTSAM_BUILD_TESTS=OFF \
+    -DGTSAM_WITH_TBB=OFF \
+    -DGTSAM_BUILD_WITH_MARCH_NATIVE=OFF
+
+source install/setup.bash
+```
+
+### Bước 3 — Build gtsam_points
+
+```bash
+colcon build --packages-select gtsam_points \
+    --cmake-args \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+source install/setup.bash
+```
+
+### Bước 4 — Build GLIM
+
+```bash
+colcon build --packages-select glim \
+    --cmake-args \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+source install/setup.bash
+```
+
+### Bước 5 — Build glim_ros2
+
+```bash
+colcon build --packages-select glim_ros \
+    --cmake-args \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+```
+
+### Bước 6 — Build iridescence (tùy chọn, chỉ cần cho demo programs)
+
+```bash
+# Cài đặt system dependencies
 sudo apt install -y libglm-dev libglfw3-dev libpng-dev
 
-# Clone và cài đặt iridescence (chỉ cần cho demo programs)
-git clone https://github.com/hungvuhust/iridescence --recursive
-
-# Về ros2_ws
-cd ~/ros2_ws
-
-# Cấu hình với CMake và build với colcon 
 colcon build --packages-select iridescence \
-      --cmake-args \
-      -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_EXPORT_COMPILE_COMMANDS=ON 
+    --cmake-args \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 ```
 
-**Kiểm tra cài đặt:**
-```bash
-# Kiểm tra GTSAM đã được cài đặt
-pkg-config --modversion gtsam
-```
+---
 
-#### 2. gtsam_points
-Thư viện mở rộng của GTSAM cho xử lý point clouds và 3D mapping.
-
-**Cài đặt gtsam_points:**
+## Kiểm tra sau khi build
 
 ```bash
-# Clone gtsam_points repository
-git clone https://github.com/hungvuhust/gtsam_points
+# Kiểm tra workspace đã được build
+ls ~/glim_3d_ws/install/
 
-# Về ros2_ws
-cd ~/ros2_ws
+# Source workspace
+source ~/glim_3d_ws/install/setup.bash
 
-# Cấu hình với CMake và build với colcon 
-colcon build --packages-select gtsam_points \
-      --cmake-args \
-      -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_EXPORT_COMPILE_COMMANDS=ON 
+# Kiểm tra các package ROS 2
+ros2 pkg list | grep -E "gtsam|glim"
 ```
 
-**Các tùy chọn CMake cho gtsam_points:**
-```bash
-# Các tham số tùy chọn cho cmake
-cmake .. \
-  -DBUILD_DEMO=OFF \                # Set ON để build demo programs
-  -DBUILD_TESTS=OFF \               # Set ON để build unit tests
-  -DBUILD_TOOLS=OFF \               # Set ON để build tools
-  -DBUILD_WITH_TBB=OFF \            # Set ON để enable TBB
-  -DBUILD_WITH_OPENMP=ON \          # Set ON để enable OpenMP (Default)
-  -DBUILD_WITH_CUDA=OFF \           # Set ON để enable CUDA support
-  -DBUILD_WITH_CUDA_MULTIARCH=OFF \ # Set ON để enable multi-arch CUDA support
-  -DCMAKE_CUDA_ARCHITECTURES=89 \   # Nếu không chỉ định, sẽ dùng "native" architecture
-  -DBUILD_WITH_MARCH_NATIVE=OFF     # Set ON để enable -march=native (khuyến nghị giữ OFF)
-```
+---
 
-#### 3. GLIM (3D Localization and Mapping Framework)
-GLIM là framework đa năng và mở rộng cho 3D localization và mapping dựa trên point cloud. Framework này cung cấp các module ước lượng khác nhau để phù hợp với nhiều kịch bản sử dụng, từ mapping chính xác với GPU đến mapping real-time nhẹ trên PC cấu hình thấp như Raspberry Pi.
+## Tùy chọn CMake nâng cao
 
-**Cài đặt GLIM:**
+### gtsam_points
 
-```bash
-# Clone GLIM repository
-git clone https://github.com/hungvuhust/glim.git --recurse-submodules
-
-# Về ros2_ws
-cd ~/ros2_ws
-
-# Cấu hình với CMake và build với colcon 
-colcon build --packages-select glim \
-      --cmake-args \
-      -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-```
-
-
-#### 4. glim_ros2 (ROS2 Interface for GLIM)
-glim_ros2 là package ROS2 cung cấp interface để sử dụng GLIM framework trong môi trường ROS2. Package này bao gồm các node và tools để tích hợp GLIM với ROS2 ecosystem.
-
-**Cài đặt glim_ros2:**
-
-```bash
-# Clone glim_ros2 repository
-git clone https://github.com/hungvuhust/glim_ros2.git
-
-# Về ros2_ws
-cd ~/ros2_ws
-
-# Cấu hình với CMake và build với colcon 
-colcon build --packages-select glim_ros \
-      --cmake-args \
-      -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-```
+| Tham số | Mặc định | Mô tả |
+|---------|----------|-------|
+| `BUILD_WITH_OPENMP` | ON | Enable OpenMP |
+| `BUILD_WITH_TBB` | OFF | Enable TBB |
+| `BUILD_WITH_CUDA` | OFF | Enable CUDA |
+| `BUILD_WITH_MARCH_NATIVE` | OFF | Enable `-march=native` |
+| `CMAKE_CUDA_ARCHITECTURES` | native | CUDA compute capability (vd: `89`) |
+| `BUILD_DEMO` | OFF | Build demo programs |
+| `BUILD_TESTS` | OFF | Build unit tests |
+| `BUILD_TOOLS` | OFF | Build tools |
